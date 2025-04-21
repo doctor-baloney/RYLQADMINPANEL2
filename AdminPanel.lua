@@ -1,4 +1,4 @@
--- Rylq's Admin Panel v1 (Updated Fly + Animation-Free)
+-- Rylq's Admin Panel v1 with Command Bar
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -7,153 +7,91 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local Camera = workspace.CurrentCamera
 local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
+local StarterGui = game:GetService("StarterGui")
 local flying = false
+local height = 0
 local speed = 50
+local moveDirection = Vector3.zero
 local bodyGyro, bodyVelocity
-
--- Command system
 local noclipOn = false
 local espOn = false
 
 -- Notification Utility
 local function notify(msg)
-    game.StarterGui:SetCore("SendNotification", {
+    StarterGui:SetCore("SendNotification", {
         Title = "Rylq's Admin Panel",
         Text = msg,
         Duration = 3
     })
 end
 
--- Create the :cmds GUI
-local function createCmdsGUI()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "CmdsGui"
-    screenGui.Parent = game.CoreGui
-
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 400, 0, 300)
-    frame.Position = UDim2.new(0.5, -200, 0.5, -150)
-    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    frame.BackgroundTransparency = 0.5
-    frame.Parent = screenGui
-
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Text = "Commands"
-    titleLabel.Size = UDim2.new(1, 0, 0, 30)
-    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.TextSize = 24
-    titleLabel.Parent = frame
-
-    local scrollFrame = Instance.new("ScrollingFrame")
-    scrollFrame.Size = UDim2.new(1, 0, 0.8, -30)
-    scrollFrame.Position = UDim2.new(0, 0, 0, 30)
-    scrollFrame.BackgroundTransparency = 1
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 600)
-    scrollFrame.ScrollBarThickness = 10
-    scrollFrame.Parent = frame
-
-    local commandList = {
-        ":fly - Enable flying",
-        ":nofly - Disable flying",
-        ":speed <value> - Set walking speed",
-        ":jumppower <value> - Set jump power",
-        ":noclip - Enable noclip mode",
-        ":clip - Disable noclip mode",
-        ":re - Respawn player",
-        ":fov <value> - Set field of view",
-        ":esp - Toggle ESP (highlight players)",
-        ":reset - Reset all effects",
-        ":cmds - Show this command list"
-    }
-
-    for _, cmd in ipairs(commandList) do
-        local cmdLabel = Instance.new("TextLabel")
-        cmdLabel.Text = cmd
-        cmdLabel.Size = UDim2.new(1, 0, 0, 40)
-        cmdLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        cmdLabel.BackgroundTransparency = 1
-        cmdLabel.TextSize = 18
-        cmdLabel.TextWrapped = true
-        cmdLabel.Parent = scrollFrame
-    end
-
-    local closeButton = Instance.new("TextButton")
-    closeButton.Text = "X"
-    closeButton.Size = UDim2.new(0, 30, 0, 30)
-    closeButton.Position = UDim2.new(1, -40, 0, 0)
-    closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeButton.Font = Enum.Font.SourceSansBold
-    closeButton.TextSize = 20
-    closeButton.Parent = frame
-
-    closeButton.MouseButton1Click:Connect(function()
-        screenGui:Destroy()
-    end)
-end
-
--- Smooth Fly with PlatformStand
+-- FLY
 local function startFlying()
     if flying then return end
     flying = true
-    Humanoid.PlatformStand = true
     notify("Flying enabled. Use WASD to move, Space to rise, Shift to descend.")
-
+    Character.Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
     bodyGyro = Instance.new("BodyGyro")
-    bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
-    bodyGyro.D = 500
-    bodyGyro.P = 3000
+    bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bodyGyro.P = 9e4
     bodyGyro.CFrame = Camera.CFrame
-    bodyGyro.Parent = Character:WaitForChild("HumanoidRootPart")
+    bodyGyro.Parent = Character.HumanoidRootPart
 
     bodyVelocity = Instance.new("BodyVelocity")
-    bodyVelocity.MaxForce = Vector3.new(400000, 400000, 400000)
+    bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
     bodyVelocity.Velocity = Vector3.zero
     bodyVelocity.Parent = Character.HumanoidRootPart
 
-    local connection
-    connection = RunService.RenderStepped:Connect(function()
-        if not flying then
+    RunService.RenderStepped:Connect(function()
+        if flying then
+            bodyGyro.CFrame = Camera.CFrame
+            local direction = moveDirection.Unit * speed
+            if moveDirection.Magnitude == 0 then direction = Vector3.zero end
+            bodyVelocity.Velocity = direction + Vector3.new(0, height, 0)
+        else
             if bodyGyro then bodyGyro:Destroy() end
             if bodyVelocity then bodyVelocity:Destroy() end
-            Humanoid.PlatformStand = false
-            connection:Disconnect()
-            return
         end
-
-        local move = Vector3.zero
-        local camCF = Camera.CFrame
-
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            move += camCF.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            move -= camCF.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            move -= camCF.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            move += camCF.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            move += camCF.UpVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-            move -= camCF.UpVector
-        end
-
-        move = move.Unit * speed
-        if move.Magnitude ~= move.Magnitude then move = Vector3.zero end
-
-        bodyGyro.CFrame = camCF
-        bodyVelocity.Velocity = move
     end)
 end
 
--- Command Parser
-LocalPlayer.Chatted:Connect(function(msg)
+-- Input handling
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    local key = input.KeyCode
+    if key == Enum.KeyCode.Space then
+        height = 50
+    elseif key == Enum.KeyCode.LeftShift then
+        height = -50
+    elseif key == Enum.KeyCode.W then
+        moveDirection = moveDirection + Camera.CFrame.LookVector
+    elseif key == Enum.KeyCode.S then
+        moveDirection = moveDirection - Camera.CFrame.LookVector
+    elseif key == Enum.KeyCode.A then
+        moveDirection = moveDirection - Camera.CFrame.RightVector
+    elseif key == Enum.KeyCode.D then
+        moveDirection = moveDirection + Camera.CFrame.RightVector
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    local key = input.KeyCode
+    if key == Enum.KeyCode.Space or key == Enum.KeyCode.LeftShift then
+        height = 0
+    elseif key == Enum.KeyCode.W or key == Enum.KeyCode.S or key == Enum.KeyCode.A or key == Enum.KeyCode.D then
+        moveDirection = Vector3.zero
+    end
+end)
+
+-- ESP toggle stub
+local function toggleESP()
+    espOn = not espOn
+    notify("ESP is now " .. (espOn and "ON" or "OFF"))
+end
+
+-- Command parser
+local function parseCommand(msg)
     msg = msg:lower()
     if msg == ":fly" then
         startFlying()
@@ -182,18 +120,79 @@ LocalPlayer.Chatted:Connect(function(msg)
         Camera.FieldOfView = fov
         notify("FOV set to " .. fov)
     elseif msg == ":esp" then
-        notify("ESP toggle not implemented in this version.")
+        toggleESP()
     elseif msg == ":reset" then
         Humanoid.WalkSpeed = 16
         Humanoid.JumpPower = 50
         Camera.FieldOfView = 70
         flying = false
-        Humanoid.PlatformStand = false
         noclipOn = false
         notify("Reset all effects.")
     elseif msg == ":cmds" then
-        createCmdsGUI()
+        notify("Command list: :fly, :nofly, :speed <num>, :jumppower <num>, :noclip, :clip, :re, :fov <num>, :esp, :reset, :cmds")
     end
-end)
+end
 
-notify("Rylq's Admin Panel v1 Loaded. Type ':cmds' for a list of commands.")
+LocalPlayer.Chatted:Connect(parseCommand)
+
+-- Command bar GUI
+local function createCommandBar()
+    local gui = Instance.new("ScreenGui", game.CoreGui)
+    gui.Name = "CommandBarGui"
+
+    local frame = Instance.new("Frame", gui)
+    frame.Size = UDim2.new(0.4, 0, 0, 40)
+    frame.Position = UDim2.new(0.3, 0, 1, -60)
+    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    frame.Visible = false
+    frame.BorderSizePixel = 0
+
+    local inputBox = Instance.new("TextBox", frame)
+    inputBox.Size = UDim2.new(1, -10, 1, -10)
+    inputBox.Position = UDim2.new(0, 5, 0, 5)
+    inputBox.BackgroundTransparency = 0.2
+    inputBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    inputBox.TextColor3 = Color3.new(1, 1, 1)
+    inputBox.PlaceholderText = "Enter command..."
+    inputBox.ClearTextOnFocus = false
+    inputBox.Font = Enum.Font.SourceSans
+    inputBox.TextSize = 20
+    inputBox.TextXAlignment = Enum.TextXAlignment.Left
+
+    local history = {}
+    local historyIndex = 0
+
+    inputBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local text = inputBox.Text
+            if text ~= "" then
+                table.insert(history, text)
+                historyIndex = #history + 1
+                parseCommand(text)
+                inputBox.Text = ""
+                frame.Visible = false
+            end
+        end
+    end)
+
+    UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if input.KeyCode == Enum.KeyCode.Semicolon then
+            frame.Visible = not frame.Visible
+            if frame.Visible then
+                inputBox:CaptureFocus()
+            end
+        elseif frame.Visible then
+            if input.KeyCode == Enum.KeyCode.Up then
+                historyIndex = math.clamp(historyIndex - 1, 1, #history)
+                inputBox.Text = history[historyIndex] or ""
+            elseif input.KeyCode == Enum.KeyCode.Down then
+                historyIndex = math.clamp(historyIndex + 1, 1, #history)
+                inputBox.Text = history[historyIndex] or ""
+            end
+        end
+    end)
+end
+
+createCommandBar()
+notify("Rylq's Admin Panel v1 Loaded. Press ';' to open the command bar or type ':cmds' for help.")
