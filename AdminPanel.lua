@@ -174,7 +174,8 @@ UserInputService.InputEnded:Connect(function(input)
         if key == Enum.KeyCode.Space or key == Enum.KeyCode.LeftShift then
             height = 0  -- Stop rising or descending
         elseif key == Enum.KeyCode.W or key == Enum.KeyCode.S or key == Enum.KeyCode.A or key == Enum.KeyCode.D then
-            moveDirection = Vector3.zero -- Stop movement
+            -- Ensure proper movement directions
+            moveDirection = moveDirection - Camera.CFrame.RightVector -- Stop movement in that direction
         end
     end
 end)
@@ -219,6 +220,14 @@ LocalPlayer.Chatted:Connect(function(msg)
         noclipOn = false
         notify("Reset all effects.")
     elseif msg == ":cmds" then
+        createCmdsGUI()
+    end
+end)
+
+-- Add command bar opening functionality
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Semicolon then
         createCmdsGUI()
     end
 end)
