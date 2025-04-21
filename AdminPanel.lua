@@ -1,55 +1,141 @@
--- Rylqs Admin Panel
+-- Rylq's Admin Panel v1
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local Camera = workspace.CurrentCamera
 
--- Command system
-local flyOn = false
-local noclipOn = false
-local espOn = false
+local flying = false
+local speed = 50
+local height = 0
+local moveDirection = Vector3.zero
+
+-- Body Parts
+local bodyGyro, bodyVelocity
+
+-- Command list
+local commands = {
+    ":fly - Toggle flying",
+    ":nofly - Disable flying",
+    ":speed <value> - Set your walking speed",
+    ":jumppower <value> - Set your jump power",
+    ":noclip - Toggle noclip mode",
+    ":clip - Disable noclip mode",
+    ":re - Respawn your character",
+    ":fov <value> - Set field of view",
+    ":esp - Toggle ESP",
+    ":reset - Reset all settings",
+    ":cmds - Show this command list"
+}
 
 -- Notification Utility
 local function notify(msg)
     game.StarterGui:SetCore("SendNotification", {
-        Title = "Rylqs Admin Panel",
+        Title = "Rylq's Admin v1",
         Text = msg,
         Duration = 3
     })
 end
 
--- FLY
-local function fly()
-    if flyOn then
-        notify("Fly is already ON.")
-        return
-    end
+-- Function to start flying (Kohl's Admin Style)
+local function startFlying()
+    if flying then return end
+    flying = true
+    notify("Flying enabled. Use WASD to move, Space to rise, Shift to descend.")
 
-    flyOn = true
-    local bodyGyro = Instance.new("BodyGyro", Character.HumanoidRootPart)
+    -- Creating BodyGyro for rotation
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
+    bodyGyro.CFrame = Camera.CFrame
+    bodyGyro.D = 9e3
     bodyGyro.P = 9e4
-    bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-    bodyGyro.CFrame = workspace.CurrentCamera.CFrame
+    bodyGyro.Parent = Character.HumanoidRootPart
 
-    local bodyVel = Instance.new("BodyVelocity", Character.HumanoidRootPart)
-    bodyVel.Velocity = Vector3.new(0, 0, 0)
-    bodyVel.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    -- Creating BodyVelocity for movement
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(400000, 400000, 400000)
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    bodyVelocity.Parent = Character.HumanoidRootPart
 
-    notify("Fly enabled. Use WASD to control.")
+    -- Fly loop
+    RunService.RenderStepped:Connect(function(_, dt)
+        if flying then
+            -- Update velocity based on camera direction
+            local forward = Camera.CFrame.LookVector
+            local right = Camera.CFrame.RightVector
+            local up = Camera.CFrame.UpVector
 
-    RunService.RenderStepped:Connect(function()
-        if flyOn then
-            bodyGyro.CFrame = workspace.CurrentCamera.CFrame
-            bodyVel.Velocity = workspace.CurrentCamera.CFrame.LookVector * 50
+            bodyGyro.CFrame = Camera.CFrame -- Keep the character facing the camera direction
+            bodyVelocity.Velocity = (moveDirection * speed) + (Vector3.new(0, height, 0)) -- Apply movement and height
+
+            -- Smooth movement based on time
+            bodyVelocity.Velocity = bodyVelocity.Velocity * dt
         else
             bodyGyro:Destroy()
-            bodyVel:Destroy()
+            bodyVelocity:Destroy()
         end
     end)
 end
+
+-- Function to stop flying
+local function stopFlying()
+    if not flying then return end
+    flying = false
+    notify("Flying disabled.")
+    bodyGyro:Destroy()
+    bodyVelocity:Destroy()
+end
+
+-- Handle user input for flying controls
+UserInputService.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Keyboard then
+        local key = input.KeyCode
+
+        if key == Enum.KeyCode.Space then
+            height = 10  -- Rising speed
+        elseif key == Enum.KeyCode.LeftShift then
+            height = -10 -- Descending speed
+        elseif key == Enum.KeyCode.W then
+            moveDirection = moveDirection + Camera.CFrame.LookVector
+        elseif key == Enum.KeyCode.S then
+            moveDirection = moveDirection - Camera.CFrame.LookVector
+        elseif key == Enum.KeyCode.A then
+            moveDirection = moveDirection - Camera.CFrame.RightVector
+        elseif key == Enum.KeyCode.D then
+            moveDirection = moveDirection + Camera.CFrame.RightVector
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Keyboard then
+        local key = input.KeyCode
+
+        if key == Enum.KeyCode.Space or key == Enum.KeyCode.LeftShift then
+            height = 0  -- Stop rising or descending
+        elseif key == Enum.KeyCode.W or key == Enum.KeyCode.S or key == Enum.KeyCode.A or key == Enum.KeyCode.D then
+            moveDirection = Vector3.zero -- Stop movement
+        end
+    end
+end)
+
+-- Command to toggle fly
+local function toggleFly()
+    if flying then
+        stopFlying()
+    else
+        startFlying()
+    end
+end
+
+-- Admin Panel Features
+local flyOn = false
+local noclipOn = false
+local espOn = false
 
 -- NOCLIP
 RunService.Stepped:Connect(function()
@@ -62,7 +148,7 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- ESP (Names above players)
+-- ESP
 local function toggleESP()
     espOn = not espOn
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -90,86 +176,11 @@ local function toggleESP()
     notify("ESP " .. (espOn and "ON" or "OFF"))
 end
 
--- VEHICLE FLY
-local vflyActive = false
-local vflyBodyGyro, vflyBodyVel
-
-local function vehicleFly()
-    if vflyActive then
-        vflyActive = false
-        if vflyBodyGyro then vflyBodyGyro:Destroy() end
-        if vflyBodyVel then vflyBodyVel:Destroy() end
-        notify("Vehicle Fly OFF")
-        return
-    end
-
-    local seat = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildWhichIsA("Seat", true)
-    if not seat or not seat:IsA("Seat") or not seat.Occupant then
-        notify("You must be sitting in a vehicle seat.")
-        return
-    end
-
-    local vehicle = seat:FindFirstAncestorWhichIsA("Model")
-    if not vehicle then
-        notify("Couldn't find vehicle model.")
-        return
-    end
-
-    local root = vehicle:FindFirstChild("PrimaryPart") or seat
-    if not root then
-        notify("No valid root part for vehicle.")
-        return
-    end
-
-    vflyActive = true
-    notify("Vehicle Fly ON. Use WASD + Q/E to control.")
-
-    vflyBodyGyro = Instance.new("BodyGyro", root)
-    vflyBodyGyro.P = 9e4
-    vflyBodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-    vflyBodyGyro.CFrame = workspace.CurrentCamera.CFrame
-
-    vflyBodyVel = Instance.new("BodyVelocity", root)
-    vflyBodyVel.Velocity = Vector3.new(0, 0, 0)
-    vflyBodyVel.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-
-    local uis = game:GetService("UserInputService")
-    local moveDir = Vector3.zero
-
-    uis.InputBegan:Connect(function(input)
-        if not vflyActive then return end
-        local key = input.KeyCode
-        if key == Enum.KeyCode.W then moveDir = moveDir + Vector3.new(0, 0, -1) end
-        if key == Enum.KeyCode.S then moveDir = moveDir + Vector3.new(0, 0, 1) end
-        if key == Enum.KeyCode.A then moveDir = moveDir + Vector3.new(-1, 0, 0) end
-        if key == Enum.KeyCode.D then moveDir = moveDir + Vector3.new(1, 0, 0) end
-        if key == Enum.KeyCode.E then moveDir = moveDir + Vector3.new(0, 1, 0) end
-        if key == Enum.KeyCode.Q then moveDir = moveDir + Vector3.new(0, -1, 0) end
-    end)
-
-    uis.InputEnded:Connect(function(input)
-        local key = input.KeyCode
-        if key == Enum.KeyCode.W then moveDir = moveDir - Vector3.new(0, 0, -1) end
-        if key == Enum.KeyCode.S then moveDir = moveDir - Vector3.new(0, 0, 1) end
-        if key == Enum.KeyCode.A then moveDir = moveDir - Vector3.new(-1, 0, 0) end
-        if key == Enum.KeyCode.D then moveDir = moveDir - Vector3.new(1, 0, 0) end
-        if key == Enum.KeyCode.E then moveDir = moveDir - Vector3.new(0, 1, 0) end
-        if key == Enum.KeyCode.Q then moveDir = moveDir - Vector3.new(0, -1, 0) end
-    end)
-
-    RunService.RenderStepped:Connect(function()
-        if vflyActive and vflyBodyGyro and vflyBodyVel then
-            vflyBodyGyro.CFrame = Camera.CFrame
-            vflyBodyVel.Velocity = Camera.CFrame:VectorToWorldSpace(moveDir) * 50
-        end
-    end)
-end
-
 -- Command Parser
 LocalPlayer.Chatted:Connect(function(msg)
     msg = msg:lower()
     if msg == ":fly" then
-        fly()
+        toggleFly()
     elseif msg == ":nofly" then
         flyOn = false
         notify("Fly disabled.")
@@ -203,7 +214,11 @@ LocalPlayer.Chatted:Connect(function(msg)
         flyOn = false
         noclipOn = false
         notify("Reset all effects.")
+    elseif msg == ":cmds" then
+        -- Show the list of available commands
+        local cmdList = table.concat(commands, "\n")
+        notify("Available Commands:\n" .. cmdList)
     end
 end)
 
-notify("Rylqs Admin Panel Loaded. Type commands in chat.")
+notify("Rylq's Admin v1 loaded. Type ':cmds' for a list of commands.")
