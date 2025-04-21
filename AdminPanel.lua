@@ -1,60 +1,59 @@
--- Rylq's Admin Panel v1 (Upgraded Fly System)
+-- Rylq's Admin Panel v1 (Updated Fly)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
 local Camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
 local flying = false
-local flyConn
-local flyDirection = Vector3.zero
-local flyVertical = 0
 local speed = 50
+local bodyGyro, bodyVelocity
 
-local function getCharacter()
-    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-end
+-- Command system
+local noclipOn = false
+local espOn = false
 
-local function getHumanoid()
-    return getCharacter():WaitForChild("Humanoid")
-end
-
+-- Notification Utility
 local function notify(msg)
-    pcall(function()
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Rylq's Admin Panel",
-            Text = msg,
-            Duration = 3
-        })
-    end)
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "Rylq's Admin Panel",
+        Text = msg,
+        Duration = 3
+    })
 end
 
--- GUI for :cmds
+-- Create the :cmds GUI
 local function createCmdsGUI()
-    local gui = Instance.new("ScreenGui", game.CoreGui)
-    gui.Name = "CmdsGui"
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "CmdsGui"
+    screenGui.Parent = game.CoreGui
 
-    local frame = Instance.new("Frame", gui)
+    local frame = Instance.new("Frame")
     frame.Size = UDim2.new(0, 400, 0, 300)
     frame.Position = UDim2.new(0.5, -200, 0.5, -150)
     frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    frame.BackgroundTransparency = 0.3
+    frame.BackgroundTransparency = 0.5
+    frame.Parent = screenGui
 
-    local title = Instance.new("TextLabel", frame)
-    title.Size = UDim2.new(1, 0, 0, 30)
-    title.Text = "Commands"
-    title.TextColor3 = Color3.new(1, 1, 1)
-    title.BackgroundTransparency = 1
-    title.TextSize = 24
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Text = "Commands"
+    titleLabel.Size = UDim2.new(1, 0, 0, 30)
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.TextSize = 24
+    titleLabel.Parent = frame
 
-    local scroll = Instance.new("ScrollingFrame", frame)
-    scroll.Size = UDim2.new(1, 0, 1, -30)
-    scroll.Position = UDim2.new(0, 0, 0, 30)
-    scroll.BackgroundTransparency = 1
-    scroll.ScrollBarThickness = 6
-    scroll.CanvasSize = UDim2.new(0, 0, 0, 500)
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Size = UDim2.new(1, 0, 0.8, -30)
+    scrollFrame.Position = UDim2.new(0, 0, 0, 30)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 600)
+    scrollFrame.ScrollBarThickness = 10
+    scrollFrame.Parent = frame
 
-    local commands = {
+    local commandList = {
         ":fly - Enable flying",
         ":nofly - Disable flying",
         ":speed <value> - Set walking speed",
@@ -68,164 +67,128 @@ local function createCmdsGUI()
         ":cmds - Show this command list"
     }
 
-    for i, cmd in ipairs(commands) do
-        local lbl = Instance.new("TextLabel", scroll)
-        lbl.Size = UDim2.new(1, -10, 0, 30)
-        lbl.Position = UDim2.new(0, 5, 0, (i - 1) * 32)
-        lbl.Text = cmd
-        lbl.TextColor3 = Color3.new(1, 1, 1)
-        lbl.BackgroundTransparency = 1
-        lbl.TextSize = 18
-        lbl.TextXAlignment = Enum.TextXAlignment.Left
+    for _, cmd in ipairs(commandList) do
+        local cmdLabel = Instance.new("TextLabel")
+        cmdLabel.Text = cmd
+        cmdLabel.Size = UDim2.new(1, 0, 0, 40)
+        cmdLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        cmdLabel.BackgroundTransparency = 1
+        cmdLabel.TextSize = 18
+        cmdLabel.TextWrapped = true
+        cmdLabel.Parent = scrollFrame
     end
 
-    local close = Instance.new("TextButton", frame)
-    close.Size = UDim2.new(0, 30, 0, 30)
-    close.Position = UDim2.new(1, -35, 0, 0)
-    close.Text = "X"
-    close.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    close.TextColor3 = Color3.new(1, 1, 1)
-    close.MouseButton1Click:Connect(function()
-        gui:Destroy()
+    local closeButton = Instance.new("TextButton")
+    closeButton.Text = "X"
+    closeButton.Size = UDim2.new(0, 30, 0, 30)
+    closeButton.Position = UDim2.new(1, -40, 0, 0)
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.TextSize = 20
+    closeButton.Parent = frame
+
+    closeButton.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
     end)
 end
 
--- Fly logic
+-- Smooth Fly
 local function startFlying()
     if flying then return end
     flying = true
+    notify("Flying enabled. Use WASD to move, Space to rise, Shift to descend.")
 
-    local char = getCharacter()
-    local hrp = char:WaitForChild("HumanoidRootPart")
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
+    bodyGyro.D = 500
+    bodyGyro.P = 3000
+    bodyGyro.CFrame = Camera.CFrame
+    bodyGyro.Parent = Character.HumanoidRootPart
 
-    local gyro = Instance.new("BodyGyro", hrp)
-    gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-    gyro.P = 1e5
-    gyro.D = 500
-    gyro.CFrame = hrp.CFrame
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(400000, 400000, 400000)
+    bodyVelocity.Velocity = Vector3.zero
+    bodyVelocity.Parent = Character.HumanoidRootPart
 
-    local vel = Instance.new("BodyVelocity", hrp)
-    vel.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-    vel.Velocity = Vector3.zero
-
-    notify("Flying enabled. Use WASD + Space/Shift")
-
-    flyConn = RunService.RenderStepped:Connect(function()
-        gyro.CFrame = Camera.CFrame
-
-        local move = flyDirection.Unit * speed
-        if flyDirection == Vector3.zero then
-            move = Vector3.zero
+    RunService.RenderStepped:Connect(function()
+        if not flying then
+            if bodyGyro then bodyGyro:Destroy() end
+            if bodyVelocity then bodyVelocity:Destroy() end
+            return
         end
 
-        vel.Velocity = move + Vector3.new(0, flyVertical, 0)
-    end)
+        local move = Vector3.zero
+        local camCF = Camera.CFrame
 
-    -- Clear on character death
-    char:WaitForChild("Humanoid").Died:Connect(function()
-        flying = false
-        if flyConn then flyConn:Disconnect() end
-        gyro:Destroy()
-        vel:Destroy()
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            move += camCF.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            move -= camCF.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            move -= camCF.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            move += camCF.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            move += camCF.UpVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            move -= camCF.UpVector
+        end
+
+        move = move.Unit * speed
+        if move.Magnitude ~= move.Magnitude then move = Vector3.zero end -- NaN fix
+
+        bodyGyro.CFrame = camCF
+        bodyVelocity.Velocity = move
     end)
 end
 
-local function stopFlying()
-    if not flying then return end
-    flying = false
-    if flyConn then flyConn:Disconnect() end
-
-    local hrp = getCharacter():FindFirstChild("HumanoidRootPart")
-    if hrp then
-        if hrp:FindFirstChildOfClass("BodyGyro") then
-            hrp:FindFirstChildOfClass("BodyGyro"):Destroy()
-        end
-        if hrp:FindFirstChildOfClass("BodyVelocity") then
-            hrp:FindFirstChildOfClass("BodyVelocity"):Destroy()
-        end
-    end
-
-    notify("Flying disabled.")
-end
-
--- Input tracking for fly movement
-UserInputService.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Keyboard then
-        local key = input.KeyCode
-        if key == Enum.KeyCode.Space then
-            flyVertical = 50
-        elseif key == Enum.KeyCode.LeftShift then
-            flyVertical = -50
-        elseif key == Enum.KeyCode.W then
-            flyDirection = flyDirection + Camera.CFrame.LookVector
-        elseif key == Enum.KeyCode.S then
-            flyDirection = flyDirection - Camera.CFrame.LookVector
-        elseif key == Enum.KeyCode.A then
-            flyDirection = flyDirection - Camera.CFrame.RightVector
-        elseif key == Enum.KeyCode.D then
-            flyDirection = flyDirection + Camera.CFrame.RightVector
-        end
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Keyboard then
-        local key = input.KeyCode
-        if key == Enum.KeyCode.Space or key == Enum.KeyCode.LeftShift then
-            flyVertical = 0
-        elseif key == Enum.KeyCode.W or key == Enum.KeyCode.S or key == Enum.KeyCode.A or key == Enum.KeyCode.D then
-            flyDirection = Vector3.zero
-        end
-    end
-end)
-
--- Command handler
-local noclip = false
-local espEnabled = false -- placeholder
-
+-- Command Parser
 LocalPlayer.Chatted:Connect(function(msg)
     msg = msg:lower()
-    local char = getCharacter()
-    local humanoid = getHumanoid()
-
     if msg == ":fly" then
         startFlying()
     elseif msg == ":nofly" then
-        stopFlying()
-    elseif msg:match("^:speed") then
-        local value = tonumber(msg:split(" ")[2]) or 100
-        humanoid.WalkSpeed = value
-        notify("Speed set to " .. value)
-    elseif msg:match("^:jumppower") then
-        local value = tonumber(msg:split(" ")[2]) or 100
-        humanoid.JumpPower = value
-        notify("JumpPower set to " .. value)
+        flying = false
+        notify("Fly disabled.")
+    elseif msg:match(":speed") then
+        local spd = tonumber(msg:split(" ")[2]) or 100
+        Humanoid.WalkSpeed = spd
+        notify("Speed set to " .. spd)
+    elseif msg:match(":jumppower") then
+        local jp = tonumber(msg:split(" ")[2]) or 100
+        Humanoid.JumpPower = jp
+        notify("JumpPower set to " .. jp)
     elseif msg == ":noclip" then
-        noclip = true
+        noclipOn = true
         notify("Noclip ON")
     elseif msg == ":clip" then
-        noclip = false
+        noclipOn = false
         notify("Noclip OFF")
     elseif msg == ":re" then
         LocalPlayer:LoadCharacter()
         notify("Respawned.")
-    elseif msg:match("^:fov") then
-        local value = tonumber(msg:split(" ")[2]) or 70
-        Camera.FieldOfView = value
-        notify("FOV set to " .. value)
+    elseif msg:match(":fov") then
+        local fov = tonumber(msg:split(" ")[2]) or 70
+        Camera.FieldOfView = fov
+        notify("FOV set to " .. fov)
     elseif msg == ":esp" then
-        espEnabled = not espEnabled
-        notify("ESP toggled: " .. tostring(espEnabled))
+        notify("ESP toggle not implemented in this version.")
     elseif msg == ":reset" then
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
+        Humanoid.WalkSpeed = 16
+        Humanoid.JumpPower = 50
         Camera.FieldOfView = 70
-        stopFlying()
-        noclip = false
-        notify("All settings reset.")
+        flying = false
+        noclipOn = false
+        notify("Reset all effects.")
     elseif msg == ":cmds" then
         createCmdsGUI()
     end
 end)
 
-notify("Rylq's Admin Panel v1 Loaded — Type ':cmds' for commands.")
+notify("Rylq's Admin Panel v1 Loaded. Type ':cmds' for a list of commands.")
