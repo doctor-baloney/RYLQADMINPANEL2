@@ -108,6 +108,9 @@ local function startFlying()
     flying = true
     notify("Flying enabled. Use WASD to move, Space to rise, Shift to descend.")
 
+    -- Disable humanoid animations while flying
+    Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+
     -- Creating BodyGyro for smooth rotation
     bodyGyro = Instance.new("BodyGyro")
     bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
@@ -130,7 +133,7 @@ local function startFlying()
             local right = Camera.CFrame.RightVector
             local up = Camera.CFrame.UpVector
 
-            -- Apply the movement based on the camera direction, smoothly
+            -- Update movement based on key inputs (WASD)
             bodyGyro.CFrame = Camera.CFrame -- Keep the character facing the camera direction
             bodyVelocity.Velocity = (moveDirection * speed) + Vector3.new(0, height, 0) -- Apply smooth movement and height
 
@@ -183,6 +186,7 @@ LocalPlayer.Chatted:Connect(function(msg)
         startFlying()
     elseif msg == ":nofly" then
         flying = false
+        Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)  -- Restore normal animation state
         notify("Fly disabled.")
     elseif msg:match(":speed") then
         local spd = tonumber(msg:split(" ")[2]) or 100
