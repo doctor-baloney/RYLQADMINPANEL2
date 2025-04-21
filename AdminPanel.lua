@@ -23,6 +23,11 @@ end
 
 -- FLY
 local function fly()
+    if flyOn then
+        notify("Fly is already ON.")
+        return
+    end
+
     flyOn = true
     local bodyGyro = Instance.new("BodyGyro", Character.HumanoidRootPart)
     bodyGyro.P = 9e4
@@ -33,7 +38,7 @@ local function fly()
     bodyVel.Velocity = Vector3.new(0, 0, 0)
     bodyVel.MaxForce = Vector3.new(9e9, 9e9, 9e9)
 
-    notify("Fly enabled. Use WASD.")
+    notify("Fly enabled. Use WASD to control.")
 
     RunService.RenderStepped:Connect(function()
         if flyOn then
@@ -57,7 +62,7 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- ESP
+-- ESP (Names above players)
 local function toggleESP()
     espOn = not espOn
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -84,6 +89,7 @@ local function toggleESP()
     end
     notify("ESP " .. (espOn and "ON" or "OFF"))
 end
+
 -- VEHICLE FLY
 local vflyActive = false
 local vflyBodyGyro, vflyBodyVel
@@ -116,7 +122,7 @@ local function vehicleFly()
     end
 
     vflyActive = true
-    notify("Vehicle Fly ON. Use WASD + Q/E")
+    notify("Vehicle Fly ON. Use WASD + Q/E to control.")
 
     vflyBodyGyro = Instance.new("BodyGyro", root)
     vflyBodyGyro.P = 9e4
@@ -143,7 +149,22 @@ local function vehicleFly()
 
     uis.InputEnded:Connect(function(input)
         local key = input.KeyCode
-        if key == Enum.KeyCode.W then moveDir = moveDir
+        if key == Enum.KeyCode.W then moveDir = moveDir - Vector3.new(0, 0, -1) end
+        if key == Enum.KeyCode.S then moveDir = moveDir - Vector3.new(0, 0, 1) end
+        if key == Enum.KeyCode.A then moveDir = moveDir - Vector3.new(-1, 0, 0) end
+        if key == Enum.KeyCode.D then moveDir = moveDir - Vector3.new(1, 0, 0) end
+        if key == Enum.KeyCode.E then moveDir = moveDir - Vector3.new(0, 1, 0) end
+        if key == Enum.KeyCode.Q then moveDir = moveDir - Vector3.new(0, -1, 0) end
+    end)
+
+    RunService.RenderStepped:Connect(function()
+        if vflyActive and vflyBodyGyro and vflyBodyVel then
+            vflyBodyGyro.CFrame = Camera.CFrame
+            vflyBodyVel.Velocity = Camera.CFrame:VectorToWorldSpace(moveDir) * 50
+        end
+    end)
+end
+
 -- Command Parser
 LocalPlayer.Chatted:Connect(function(msg)
     msg = msg:lower()
