@@ -1,4 +1,4 @@
--- Rylq's Admin Panel v1 (Updated Fly)
+-- Rylq's Admin Panel v1 (Updated Fly + Animation-Free)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -93,10 +93,11 @@ local function createCmdsGUI()
     end)
 end
 
--- Smooth Fly
+-- Smooth Fly with PlatformStand
 local function startFlying()
     if flying then return end
     flying = true
+    Humanoid.PlatformStand = true
     notify("Flying enabled. Use WASD to move, Space to rise, Shift to descend.")
 
     bodyGyro = Instance.new("BodyGyro")
@@ -104,17 +105,20 @@ local function startFlying()
     bodyGyro.D = 500
     bodyGyro.P = 3000
     bodyGyro.CFrame = Camera.CFrame
-    bodyGyro.Parent = Character.HumanoidRootPart
+    bodyGyro.Parent = Character:WaitForChild("HumanoidRootPart")
 
     bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.MaxForce = Vector3.new(400000, 400000, 400000)
     bodyVelocity.Velocity = Vector3.zero
     bodyVelocity.Parent = Character.HumanoidRootPart
 
-    RunService.RenderStepped:Connect(function()
+    local connection
+    connection = RunService.RenderStepped:Connect(function()
         if not flying then
             if bodyGyro then bodyGyro:Destroy() end
             if bodyVelocity then bodyVelocity:Destroy() end
+            Humanoid.PlatformStand = false
+            connection:Disconnect()
             return
         end
 
@@ -141,7 +145,7 @@ local function startFlying()
         end
 
         move = move.Unit * speed
-        if move.Magnitude ~= move.Magnitude then move = Vector3.zero end -- NaN fix
+        if move.Magnitude ~= move.Magnitude then move = Vector3.zero end
 
         bodyGyro.CFrame = camCF
         bodyVelocity.Velocity = move
@@ -184,6 +188,7 @@ LocalPlayer.Chatted:Connect(function(msg)
         Humanoid.JumpPower = 50
         Camera.FieldOfView = 70
         flying = false
+        Humanoid.PlatformStand = false
         noclipOn = false
         notify("Reset all effects.")
     elseif msg == ":cmds" then
