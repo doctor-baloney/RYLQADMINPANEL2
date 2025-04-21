@@ -26,6 +26,82 @@ local function notify(msg)
     })
 end
 
+-- Create the :cmds GUI
+local function createCmdsGUI()
+    -- Create a ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "CmdsGui"
+    screenGui.Parent = game.CoreGui
+
+    -- Create a frame for the command list
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 400, 0, 300)  -- Adjust the size as needed
+    frame.Position = UDim2.new(0.5, -200, 0.5, -150)  -- Center the frame
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BackgroundTransparency = 0.5
+    frame.Parent = screenGui
+
+    -- Add a title label
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Text = "Commands"
+    titleLabel.Size = UDim2.new(1, 0, 0, 30)
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.TextSize = 24
+    titleLabel.Parent = frame
+
+    -- Create a scrolling frame for the command list
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Size = UDim2.new(1, 0, 0.8, -30)  -- Adjust the size to fit under the title
+    scrollFrame.Position = UDim2.new(0, 0, 0, 30)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 600)  -- Adjust the canvas size as needed
+    scrollFrame.ScrollBarThickness = 10
+    scrollFrame.Parent = frame
+
+    -- Create a TextLabel for each command
+    local commandList = {
+        ":fly - Enable flying",
+        ":nofly - Disable flying",
+        ":speed <value> - Set walking speed",
+        ":jumppower <value> - Set jump power",
+        ":noclip - Enable noclip mode",
+        ":clip - Disable noclip mode",
+        ":re - Respawn player",
+        ":fov <value> - Set field of view",
+        ":esp - Toggle ESP (highlight players)",
+        ":reset - Reset all effects",
+        ":cmds - Show this command list"
+    }
+
+    for _, cmd in ipairs(commandList) do
+        local cmdLabel = Instance.new("TextLabel")
+        cmdLabel.Text = cmd
+        cmdLabel.Size = UDim2.new(1, 0, 0, 40)
+        cmdLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        cmdLabel.BackgroundTransparency = 1
+        cmdLabel.TextSize = 18
+        cmdLabel.TextWrapped = true
+        cmdLabel.Parent = scrollFrame
+    end
+
+    -- Create a close button with a red X
+    local closeButton = Instance.new("TextButton")
+    closeButton.Text = "X"
+    closeButton.Size = UDim2.new(0, 30, 0, 30)
+    closeButton.Position = UDim2.new(1, -40, 0, 0)  -- Top-right corner
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.TextSize = 20
+    closeButton.Parent = frame
+
+    -- Close the GUI when the close button is clicked
+    closeButton.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+end
+
 -- FLY
 local function startFlying()
     if flying then return end
@@ -100,45 +176,6 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
--- NOCLIP
-RunService.Stepped:Connect(function()
-    if noclipOn and Character then
-        for _, part in pairs(Character:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide == true then
-                part.CanCollide = false
-            end
-        end
-    end
-end)
-
--- ESP
-local function toggleESP()
-    espOn = not espOn
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then
-            local char = plr.Character
-            if char and char:FindFirstChild("Head") then
-                if espOn then
-                    local billboard = Instance.new("BillboardGui", char.Head)
-                    billboard.Name = "ESP"
-                    billboard.Size = UDim2.new(0, 100, 0, 40)
-                    billboard.AlwaysOnTop = true
-                    local label = Instance.new("TextLabel", billboard)
-                    label.Size = UDim2.new(1, 0, 1, 0)
-                    label.BackgroundTransparency = 1
-                    label.Text = plr.Name
-                    label.TextColor3 = Color3.new(1, 0, 0)
-                else
-                    if char.Head:FindFirstChild("ESP") then
-                        char.Head.ESP:Destroy()
-                    end
-                end
-            end
-        end
-    end
-    notify("ESP " .. (espOn and "ON" or "OFF"))
-end
-
 -- Command Parser
 LocalPlayer.Chatted:Connect(function(msg)
     msg = msg:lower()
@@ -178,7 +215,7 @@ LocalPlayer.Chatted:Connect(function(msg)
         noclipOn = false
         notify("Reset all effects.")
     elseif msg == ":cmds" then
-        notify("Commands: :fly, :nofly, :speed <value>, :jumppower <value>, :noclip, :clip, :re, :fov <value>, :esp, :reset, :cmds")
+        createCmdsGUI()
     end
 end)
 
