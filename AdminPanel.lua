@@ -2,57 +2,42 @@
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local Camera = workspace.CurrentCamera
-
+local UserInputService = game:GetService("UserInputService")
 local flying = false
-local speed = 50
 local height = 0
+local speed = 50
 local moveDirection = Vector3.zero
-
--- Body Parts
 local bodyGyro, bodyVelocity
 
--- Command list
-local commands = {
-    ":fly - Toggle flying",
-    ":nofly - Disable flying",
-    ":speed <value> - Set your walking speed",
-    ":jumppower <value> - Set your jump power",
-    ":noclip - Toggle noclip mode",
-    ":clip - Disable noclip mode",
-    ":re - Respawn your character",
-    ":fov <value> - Set field of view",
-    ":esp - Toggle ESP",
-    ":reset - Reset all settings",
-    ":cmds - Show this command list"
-}
+-- Command system
+local noclipOn = false
+local espOn = false
 
 -- Notification Utility
 local function notify(msg)
     game.StarterGui:SetCore("SendNotification", {
-        Title = "Rylq's Admin v1",
+        Title = "Rylq's Admin Panel",
         Text = msg,
         Duration = 3
     })
 end
 
--- Function to start flying (Kohl's Admin Style)
+-- FLY
 local function startFlying()
     if flying then return end
     flying = true
     notify("Flying enabled. Use WASD to move, Space to rise, Shift to descend.")
 
-    -- Creating BodyGyro for rotation
+    -- Creating BodyGyro for rotation to follow the camera
     bodyGyro = Instance.new("BodyGyro")
     bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
-    bodyGyro.CFrame = Camera.CFrame
     bodyGyro.D = 9e3
     bodyGyro.P = 9e4
+    bodyGyro.CFrame = Camera.CFrame
     bodyGyro.Parent = Character.HumanoidRootPart
 
     -- Creating BodyVelocity for movement
@@ -64,11 +49,12 @@ local function startFlying()
     -- Fly loop
     RunService.RenderStepped:Connect(function(_, dt)
         if flying then
-            -- Update velocity based on camera direction
+            -- Get the direction the camera is facing
             local forward = Camera.CFrame.LookVector
             local right = Camera.CFrame.RightVector
             local up = Camera.CFrame.UpVector
 
+            -- Apply the movement in sync with camera direction
             bodyGyro.CFrame = Camera.CFrame -- Keep the character facing the camera direction
             bodyVelocity.Velocity = (moveDirection * speed) + (Vector3.new(0, height, 0)) -- Apply movement and height
 
@@ -79,15 +65,6 @@ local function startFlying()
             bodyVelocity:Destroy()
         end
     end)
-end
-
--- Function to stop flying
-local function stopFlying()
-    if not flying then return end
-    flying = false
-    notify("Flying disabled.")
-    bodyGyro:Destroy()
-    bodyVelocity:Destroy()
 end
 
 -- Handle user input for flying controls
@@ -122,20 +99,6 @@ UserInputService.InputEnded:Connect(function(input)
         end
     end
 end)
-
--- Command to toggle fly
-local function toggleFly()
-    if flying then
-        stopFlying()
-    else
-        startFlying()
-    end
-end
-
--- Admin Panel Features
-local flyOn = false
-local noclipOn = false
-local espOn = false
 
 -- NOCLIP
 RunService.Stepped:Connect(function()
@@ -180,9 +143,9 @@ end
 LocalPlayer.Chatted:Connect(function(msg)
     msg = msg:lower()
     if msg == ":fly" then
-        toggleFly()
+        startFlying()
     elseif msg == ":nofly" then
-        flyOn = false
+        flying = false
         notify("Fly disabled.")
     elseif msg:match(":speed") then
         local spd = tonumber(msg:split(" ")[2]) or 100
@@ -211,14 +174,12 @@ LocalPlayer.Chatted:Connect(function(msg)
         Humanoid.WalkSpeed = 16
         Humanoid.JumpPower = 50
         Camera.FieldOfView = 70
-        flyOn = false
+        flying = false
         noclipOn = false
         notify("Reset all effects.")
     elseif msg == ":cmds" then
-        -- Show the list of available commands
-        local cmdList = table.concat(commands, "\n")
-        notify("Available Commands:\n" .. cmdList)
+        notify("Commands: :fly, :nofly, :speed <value>, :jumppower <value>, :noclip, :clip, :re, :fov <value>, :esp, :reset, :cmds")
     end
 end)
 
-notify("Rylq's Admin v1 loaded. Type ':cmds' for a list of commands.")
+notify("Rylq's Admin Panel v1 Loaded. Type ':cmds' for a list of commands.")
